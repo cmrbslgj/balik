@@ -2193,7 +2193,7 @@
 
   // ---- Düğme + pencere ----
   const btn = document.createElement("button");
-  btn.className = "btn-icon"; btn.id = "sheet-btn"; btn.onclick = () => openModal();
+  btn.className = "btn-icon"; btn.id = "sheet-btn"; btn.onclick = () => openNews();
   document.querySelector("#bottom-bar .panel-box").appendChild(btn);
   // Sağ alttaki "Giriş Yap" düğmesi: girişliyse kullanıcının adı yazar (yanında kayıt durumu), değilse "Giriş Yap"
   const who = document.createElement("button");
@@ -2206,6 +2206,34 @@
   back.addEventListener("click", e => { if (e.target === back && !kickedMode) closeModal(); });
   document.body.appendChild(back);
   const box = back.firstChild;
+  // 💾 düğmesi yalnızca kayıt haberlerini gösterir (hesap işlemleri sağ alttaki Giriş düğmesinde)
+  const newsBack = document.createElement("div");
+  newsBack.className = "modal-backdrop"; newsBack.id = "sheet-news";
+  newsBack.innerHTML = '<div class="modal-content" id="sheet-news-box"></div>';
+  newsBack.addEventListener("click", e => { if (e.target === newsBack || e.target.closest("[data-n=close]")) closeNews(); });
+  newsBack.addEventListener("keydown", e => { if (e.key === "Escape" || e.key === "Enter") closeNews(); e.stopPropagation(); });
+  document.body.appendChild(newsBack);
+  const newsBox = newsBack.firstChild;
+  const news = [];                               // [zaman, ikon, metin] — en yenisi başta
+  let newsBase = null;
+  const hm = t => new Date(t).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  function addNews(icon, txt) {
+    if (news[0] && news[0][1] === icon && news[0][2] === txt && icon !== "✓") return;   // aynı hata üst üste yazılmasın
+    news.unshift([Date.now(), icon, txt]); news.length = Math.min(news.length, 8);
+    if (newsBack.classList.contains("open")) renderNews();
+  }
+  function renderNews() {
+    const cur = !cfg ? "" : pend ? "⚠ Bilgisayardaki ve internetteki kayıt farklı. Seçim için sağ alttaki hesap düğmesine tıkla."
+      : { ok: "✓ Her şey kayıtlı" + (lastTime ? " (" + hm(lastTime) + ")" : ""), busy: "… Kaydediliyor", off: "⚠ Kaydedilemedi, tekrar denenecek: " + lastErr,
+          err: "⚠ Kaydedilemedi: " + lastErr, idle: "… Bağlanıyor" }[status];
+    const bad = pend || status === "off" || status === "err";
+    const list = news.length ? news.map(([t, i, x]) => `<div style="display:flex;gap:8px;font-size:13px;padding:4px 0;border-top:1px solid rgba(255,255,255,.1)"><span style="opacity:.6">${hm(t)}</span><span class="${i === "⚠" ? "sh-err" : "sh-ok"}">${i}</span><span>${esc(x)}</span></div>`).join("")
+      : '<p style="font-size:12px;opacity:.6">Henüz kayıt haberi yok.</p>';
+    newsBox.innerHTML = `<h3 style="margin:0">💾 Kayıt Durumu</h3><p class="${bad ? "sh-err" : "sh-ok"}" style="font-size:15px"><b>${esc(cur)}</b></p>
+      <div>${list}</div><div class="modal-actions"><button class="btn-action" data-n="close">Kapat</button></div>`;
+  }
+  function openNews() { renderNews(); newsBack.classList.add("open"); newsBox.querySelector("[data-n=close]").focus(); }
+  function closeNews() { newsBack.classList.remove("open"); }
   const st = document.createElement("style");
   st.textContent = ".sh-in{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:8px;font:inherit;font-size:14px;outline:none;user-select:text}" +
     "#sheet-box p{margin:0;font-size:13px;line-height:1.45;opacity:.9}#sheet-box .sh-msg{min-height:18px;font-size:13px}#sheet-box .modal-actions{flex-wrap:wrap}" +
@@ -2216,19 +2244,27 @@
   function paint() {
     const mark = !cfg ? "" : pend ? " ⚠" : { ok: " ✓", busy: " …", off: " ⚠", err: " ⚠" }[status] || "";
     btn.textContent = "💾" + mark;
-    who.textContent = cfg ? "👤 " + cfg.ad + mark : "🔑 Giriş Yap";
+    btn.style.display = cfg ? "" : "none";             // giriş yapılmamışsa kayıt simgesi görünmez
+    who.textContent = cfg ? "👤 " + cfg.ad : "🔑 Giriş Yap";
     who.style.borderColor = cfg ? "#22c55e" : ""; who.style.border = cfg ? "1px solid #22c55e" : "";
     btn.title = !cfg ? "Hesap ve Kayıt: giriş yaparsan sınıf internete kaydedilir"
       : `Hesap: ${cfg.ad} — ` + (pend ? "bilgisayardaki ve internetteki kayıt farklı, seçmek için tıkla"
         : { ok: "her şey kayıtlı", busy: "kaydediliyor…", off: "kaydedilemedi, tekrar denenecek (" + lastErr + ")",
             err: "kaydedilemedi: " + lastErr, idle: "bağlanıyor…" }[status]);
-    who.title = btn.title;
+    who.title = cfg ? "Hesap: " + cfg.ad : "Giriş yap / Hesap aç";
   }
   function setStatus(s, err) {
+    const prev = status;
     status = s;
     if (err !== undefined) lastErr = err;
-    if (s === "ok") { lastErr = ""; lastTime = Date.now(); }
+    if (s === "ok") {
+      lastErr = ""; lastTime = Date.now();
+      if (base !== newsBase || prev === "off" || prev === "err") addNews("✓", newsBase === null ? "Bağlandı, her şey kayıtlı" : "Kaydedildi");
+      newsBase = base;
+    }
+    if (s === "off" || s === "err") addNews("⚠", (s === "off" ? "Kaydedilemedi, tekrar denenecek: " : "Kaydedilemedi: ") + lastErr);
     paint();
+    if (newsBack.classList.contains("open")) renderNews();
     if (curView === "conn") view("conn");
   }
 
@@ -2237,7 +2273,7 @@
     if (name === "conn" && !cfg) name = "start";
     curView = name;
     const m = `<div class="sh-msg ${cls || ""}">${msg ? esc(msg) : ""}</div>`;
-    const title = "<h3 style='margin:0'>💾 Hesap ve Kayıt</h3>";
+    const title = "<h3 style='margin:0'>👤 Hesap</h3>";
     let h = "";
     if (name === "conn" && cfg) {
       const t = lastTime ? new Date(lastTime).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "—";
@@ -2300,7 +2336,7 @@
     kickLost = unsynced(); kickedMode = true;
     clearTimeout(timer); cfg = null; pend = null; status = "idle";
     lsSet(K_CFG, null); lsSet(K_GUEST, "1"); setBase(null);
-    paint(); ctx = {}; view("kicked"); openBack();
+    closeNews(); paint(); ctx = {}; view("kicked"); openBack();
   }
 
   // ---- Veri aktarımı ----
@@ -2345,6 +2381,7 @@
         applyRows(P); setBase(s); return setStatus("ok");
       }
       pend = { ad: cfg.ad, pin: cfg.pin, rows, names: P.names, t };                     // iki taraf da değişmiş: kullanıcı seçsin
+      addNews("⚠", "Bilgisayardaki ve internetteki kayıt farklı");
       paint(); ctx = {}; view("choose"); openBack();
     } catch (e) { setStatus("off", netTxt(e)); schedule(30000); }
     finally { busy = false; }
@@ -2435,6 +2472,7 @@
         if (unsynced() && !confirm("İnternete kaydedilmemiş değişiklikler var. Yine de çıkış yapılsın mı?")) return;
         clearTimeout(timer); cfg = null; pend = null; status = "idle";
         lsSet(K_CFG, null); lsSet(K_GUEST, null); setBase(null);
+        news.length = 0; newsBase = null;
         paint(); ctx = {}; return view("wel");
       }
     } catch (err) {
