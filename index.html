@@ -2195,6 +2195,11 @@
   const btn = document.createElement("button");
   btn.className = "btn-icon"; btn.id = "sheet-btn"; btn.onclick = () => openModal();
   document.querySelector("#bottom-bar .panel-box").appendChild(btn);
+  // Sağ alttaki "Giriş Yap" düğmesi: girişliyse kullanıcının adı yazar (yanında kayıt durumu), değilse "Giriş Yap"
+  const who = document.createElement("button");
+  who.className = "btn-secondary"; who.id = "sheet-who"; who.onclick = () => openModal();
+  who.style.cssText = "max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+  document.querySelector("#bottom-bar .panel-box:last-child").appendChild(who);
   const back = document.createElement("div");
   back.className = "modal-backdrop"; back.id = "sheet-modal";
   back.innerHTML = '<div class="modal-content" id="sheet-box"></div>';
@@ -2209,11 +2214,15 @@
   document.head.appendChild(st);
 
   function paint() {
-    btn.textContent = "💾" + (!cfg ? "" : pend ? " ⚠" : { ok: " ✓", busy: " …", off: " ⚠", err: " ⚠" }[status] || "");
+    const mark = !cfg ? "" : pend ? " ⚠" : { ok: " ✓", busy: " …", off: " ⚠", err: " ⚠" }[status] || "";
+    btn.textContent = "💾" + mark;
+    who.textContent = cfg ? "👤 " + cfg.ad + mark : "🔑 Giriş Yap";
+    who.style.borderColor = cfg ? "#22c55e" : ""; who.style.border = cfg ? "1px solid #22c55e" : "";
     btn.title = !cfg ? "Hesap ve Kayıt: giriş yaparsan sınıf internete kaydedilir"
       : `Hesap: ${cfg.ad} — ` + (pend ? "bilgisayardaki ve internetteki kayıt farklı, seçmek için tıkla"
         : { ok: "her şey kayıtlı", busy: "kaydediliyor…", off: "kaydedilemedi, tekrar denenecek (" + lastErr + ")",
             err: "kaydedilemedi: " + lastErr, idle: "bağlanıyor…" }[status]);
+    who.title = btn.title;
   }
   function setStatus(s, err) {
     status = s;
